@@ -4,10 +4,7 @@
   "description": "",
   "scripts": {
     "proto": "find ../shared -iname *.proto -exec protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --proto_path='../shared/protocol_buffers' --ts_proto_opt=esModuleInterop=true --ts_proto_out=./protocol_buffers '{}' \\;",
-    "start": "vite",
-    "dev": "vite",
-    "build": "vite build",
-    "serve": "vite preview"
+    "dev": "ts-node index"
   },
   "license": "MIT",
   "dependencies": {

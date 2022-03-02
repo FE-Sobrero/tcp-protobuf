@@ -42,6 +42,8 @@ Installing Deps & Running Server
 cd <PATH_TO_PROJECT>/server
 # Install Server dependencies
 npm install
+# Generate Protocol Buffers
+npm run proto
 # Start the server
 ts-node index
 ```
@@ -52,6 +54,8 @@ Installing Deps & Running Client
 cd <PATH_TO_PROJECT>/client
 # Install Client dependencies
 npm install
+# Generate Protocol Buffers
+npm run proto
 # Start the client
 ts-node index
 ```
