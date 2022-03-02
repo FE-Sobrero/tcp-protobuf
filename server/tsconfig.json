@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "module": "commonjs",
+		"removeComments":true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+		"downlevelIteration": true,
+    "types": ["@types/node", "node"]
+  },
+	"include": ["*", "*.ts", "**.ts", "**/*"],
+	"exclude": ["node_modules"]
+}

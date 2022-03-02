@@ -1,0 +1,15 @@
+{
+	"main": "index.js",
+	"scripts": {
+		"dev": "ts-node index",
+		"proto": "find ../shared -iname *.proto -exec protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --proto_path='../shared/protocol_buffers' --ts_proto_opt=esModuleInterop=true --ts_proto_out=./protocol_buffers '{}' \\;"
+	},
+	"devDependencies": {
+		"@types/node": "^17.0.21",
+		"ts-node": "^10.6.0",
+		"typescript": "^4.6.2"
+	},
+	"dependencies": {
+		"ts-proto": "^1.106.2"
+	}
+}

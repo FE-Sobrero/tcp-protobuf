@@ -1,0 +1,30 @@
+version: '3'
+
+services:
+  server:
+    container_name: tcp-tb-server
+    build:
+      context: ./server
+    image: tcp-pb-server
+    ports:
+      - 8389:8389
+    restart: always
+    volumes:
+      - ./shared:/usr/shared:rw
+      - ./server/index.ts:/usr/src/index.ts:ro
+    labels:
+      - tcp-tb-server
+    command: /bin/sh -c "ts-node index"
+  client:
+    container_name: tcp-tb-client
+    image: tcp-pb-client
+    build:
+      context: ./client
+    volumes:
+      - ./shared/:/usr/shared:rw
+      - ./client/index.ts:/usr/src/index.ts:ro
+    labels:
+      - tcp-tb-client
+    command: /bin/sh -c "ts-node index"
+    depends_on:
+      - server

@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+message API {
+	oneof payloads {
+		Request request = 1;
+		Response response = 2;
+		Error error = 3;
+	}
+}
+
+enum ResponseType {
+	undefined = 0;
+	version = 1;
+	hash = 2;
+	chunk = 3;
+	size = 4;
+	crc32 = 5;
+}
+
+message Response {
+	ResponseType type = 1;
+	bytes data = 2;
+}
+
+message Request {
+	oneof requests {
+		VersionRequest version = 1;
+		HashRequest hash = 2;
+		ChunkRequest chunk = 3;
+		SizeRequest size = 4;
+		ChunkRequest crc32 = 5;
+	}
+}
+
+message VersionRequest {
+	string model = 1;
+	string hardware = 2;
+}
+
+message HashRequest {
+	string model = 1;
+	string hardware = 2;
+	string version = 3;
+}
+
+message ChunkRequest {
+	string hash = 1;
+	FileType file_type = 2;
+	int32 start = 3;
+	int32 length = 4;
+}
+
+message SizeRequest {
+	string hash = 1;
+	FileType file_type = 2;
+}
+
+enum FileType {
+	DAT = 0;
+	BIN = 1;
+}
+
+enum Error {
+	NONE = 0;
+	GENERIC = 1;
+}

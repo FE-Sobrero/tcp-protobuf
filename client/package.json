@@ -1,0 +1,21 @@
+{
+  "name": "tcp-protobuf-client",
+  "version": "0.0.0",
+  "description": "",
+  "scripts": {
+    "proto": "find ../shared -iname *.proto -exec protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --proto_path='../shared/protocol_buffers' --ts_proto_opt=esModuleInterop=true --ts_proto_out=./protocol_buffers '{}' \\;",
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "ts-proto": "^1.106.2"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.21",
+    "ts-node": "^10.6.0",
+    "typescript": "^4.6.2"
+  }
+}
