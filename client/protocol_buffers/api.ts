@@ -4,7 +4,7 @@ import _m0 from "protobufjs/minimal";
 
 export const protobufPackage = "";
 
-export enum ResponseType {
+export enum MessageType {
   undefined = 0,
   version = 1,
   hash = 2,
@@ -14,46 +14,46 @@ export enum ResponseType {
   UNRECOGNIZED = -1,
 }
 
-export function responseTypeFromJSON(object: any): ResponseType {
+export function messageTypeFromJSON(object: any): MessageType {
   switch (object) {
     case 0:
     case "undefined":
-      return ResponseType.undefined;
+      return MessageType.undefined;
     case 1:
     case "version":
-      return ResponseType.version;
+      return MessageType.version;
     case 2:
     case "hash":
-      return ResponseType.hash;
+      return MessageType.hash;
     case 3:
     case "chunk":
-      return ResponseType.chunk;
+      return MessageType.chunk;
     case 4:
     case "size":
-      return ResponseType.size;
+      return MessageType.size;
     case 5:
     case "crc32":
-      return ResponseType.crc32;
+      return MessageType.crc32;
     case -1:
     case "UNRECOGNIZED":
     default:
-      return ResponseType.UNRECOGNIZED;
+      return MessageType.UNRECOGNIZED;
   }
 }
 
-export function responseTypeToJSON(object: ResponseType): string {
+export function messageTypeToJSON(object: MessageType): string {
   switch (object) {
-    case ResponseType.undefined:
+    case MessageType.undefined:
       return "undefined";
-    case ResponseType.version:
+    case MessageType.version:
       return "version";
-    case ResponseType.hash:
+    case MessageType.hash:
       return "hash";
-    case ResponseType.chunk:
+    case MessageType.chunk:
       return "chunk";
-    case ResponseType.size:
+    case MessageType.size:
       return "size";
-    case ResponseType.crc32:
+    case MessageType.crc32:
       return "crc32";
     default:
       return "UNKNOWN";
@@ -95,6 +95,7 @@ export function fileTypeToJSON(object: FileType): string {
 export enum Error {
   NONE = 0,
   GENERIC = 1,
+  UNHANDLED_MESSAGE = 2,
   UNRECOGNIZED = -1,
 }
 
@@ -106,6 +107,9 @@ export function errorFromJSON(object: any): Error {
     case 1:
     case "GENERIC":
       return Error.GENERIC;
+    case 2:
+    case "UNHANDLED_MESSAGE":
+      return Error.UNHANDLED_MESSAGE;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -119,6 +123,8 @@ export function errorToJSON(object: Error): string {
       return "NONE";
     case Error.GENERIC:
       return "GENERIC";
+    case Error.UNHANDLED_MESSAGE:
+      return "UNHANDLED_MESSAGE";
     default:
       return "UNKNOWN";
   }
@@ -131,16 +137,41 @@ export interface API {
 }
 
 export interface Response {
-  type: ResponseType;
-  data: Uint8Array;
+  type: MessageType;
+  version: string | undefined;
+  hash: string | undefined;
+  size: SizeResponse | undefined;
+  chunk: ChunkResponse | undefined;
+  crc32: CRC32Response | undefined;
 }
 
 export interface Request {
+  type: MessageType;
   version: VersionRequest | undefined;
   hash: HashRequest | undefined;
   chunk: ChunkRequest | undefined;
   size: SizeRequest | undefined;
   crc32: ChunkRequest | undefined;
+}
+
+export interface SizeResponse {
+  fileType: FileType;
+  value: number;
+}
+
+export interface ChunkResponse {
+  fileType: FileType;
+  start: number;
+  length: number;
+  data: Uint8Array;
+  crc32?: number | undefined;
+}
+
+export interface CRC32Response {
+  fileType: FileType;
+  start: number;
+  length: number;
+  value: number;
 }
 
 export interface VersionRequest {
@@ -159,6 +190,7 @@ export interface ChunkRequest {
   fileType: FileType;
   start: number;
   length: number;
+  includeCrc32?: boolean | undefined;
 }
 
 export interface SizeRequest {
@@ -252,7 +284,14 @@ export const API = {
 };
 
 function createBaseResponse(): Response {
-  return { type: 0, data: new Uint8Array() };
+  return {
+    type: 0,
+    version: undefined,
+    hash: undefined,
+    size: undefined,
+    chunk: undefined,
+    crc32: undefined,
+  };
 }
 
 export const Response = {
@@ -263,8 +302,20 @@ export const Response = {
     if (message.type !== 0) {
       writer.uint32(8).int32(message.type);
     }
-    if (message.data.length !== 0) {
-      writer.uint32(18).bytes(message.data);
+    if (message.version !== undefined) {
+      writer.uint32(18).string(message.version);
+    }
+    if (message.hash !== undefined) {
+      writer.uint32(26).string(message.hash);
+    }
+    if (message.size !== undefined) {
+      SizeResponse.encode(message.size, writer.uint32(34).fork()).ldelim();
+    }
+    if (message.chunk !== undefined) {
+      ChunkResponse.encode(message.chunk, writer.uint32(42).fork()).ldelim();
+    }
+    if (message.crc32 !== undefined) {
+      CRC32Response.encode(message.crc32, writer.uint32(50).fork()).ldelim();
     }
     return writer;
   },
@@ -280,7 +331,19 @@ export const Response = {
           message.type = reader.int32() as any;
           break;
         case 2:
-          message.data = reader.bytes();
+          message.version = reader.string();
+          break;
+        case 3:
+          message.hash = reader.string();
+          break;
+        case 4:
+          message.size = SizeResponse.decode(reader, reader.uint32());
+          break;
+        case 5:
+          message.chunk = ChunkResponse.decode(reader, reader.uint32());
+          break;
+        case 6:
+          message.crc32 = CRC32Response.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -292,33 +355,61 @@ export const Response = {
 
   fromJSON(object: any): Response {
     return {
-      type: isSet(object.type) ? responseTypeFromJSON(object.type) : 0,
-      data: isSet(object.data)
-        ? bytesFromBase64(object.data)
-        : new Uint8Array(),
+      type: isSet(object.type) ? messageTypeFromJSON(object.type) : 0,
+      version: isSet(object.version) ? String(object.version) : undefined,
+      hash: isSet(object.hash) ? String(object.hash) : undefined,
+      size: isSet(object.size) ? SizeResponse.fromJSON(object.size) : undefined,
+      chunk: isSet(object.chunk)
+        ? ChunkResponse.fromJSON(object.chunk)
+        : undefined,
+      crc32: isSet(object.crc32)
+        ? CRC32Response.fromJSON(object.crc32)
+        : undefined,
     };
   },
 
   toJSON(message: Response): unknown {
     const obj: any = {};
-    message.type !== undefined && (obj.type = responseTypeToJSON(message.type));
-    message.data !== undefined &&
-      (obj.data = base64FromBytes(
-        message.data !== undefined ? message.data : new Uint8Array()
-      ));
+    message.type !== undefined && (obj.type = messageTypeToJSON(message.type));
+    message.version !== undefined && (obj.version = message.version);
+    message.hash !== undefined && (obj.hash = message.hash);
+    message.size !== undefined &&
+      (obj.size = message.size ? SizeResponse.toJSON(message.size) : undefined);
+    message.chunk !== undefined &&
+      (obj.chunk = message.chunk
+        ? ChunkResponse.toJSON(message.chunk)
+        : undefined);
+    message.crc32 !== undefined &&
+      (obj.crc32 = message.crc32
+        ? CRC32Response.toJSON(message.crc32)
+        : undefined);
     return obj;
   },
 
   fromPartial<I extends Exact<DeepPartial<Response>, I>>(object: I): Response {
     const message = createBaseResponse();
     message.type = object.type ?? 0;
-    message.data = object.data ?? new Uint8Array();
+    message.version = object.version ?? undefined;
+    message.hash = object.hash ?? undefined;
+    message.size =
+      object.size !== undefined && object.size !== null
+        ? SizeResponse.fromPartial(object.size)
+        : undefined;
+    message.chunk =
+      object.chunk !== undefined && object.chunk !== null
+        ? ChunkResponse.fromPartial(object.chunk)
+        : undefined;
+    message.crc32 =
+      object.crc32 !== undefined && object.crc32 !== null
+        ? CRC32Response.fromPartial(object.crc32)
+        : undefined;
     return message;
   },
 };
 
 function createBaseRequest(): Request {
   return {
+    type: 0,
     version: undefined,
     hash: undefined,
     chunk: undefined,
@@ -332,20 +423,23 @@ export const Request = {
     message: Request,
     writer: _m0.Writer = _m0.Writer.create()
   ): _m0.Writer {
+    if (message.type !== 0) {
+      writer.uint32(8).int32(message.type);
+    }
     if (message.version !== undefined) {
-      VersionRequest.encode(message.version, writer.uint32(10).fork()).ldelim();
+      VersionRequest.encode(message.version, writer.uint32(18).fork()).ldelim();
     }
     if (message.hash !== undefined) {
-      HashRequest.encode(message.hash, writer.uint32(18).fork()).ldelim();
+      HashRequest.encode(message.hash, writer.uint32(26).fork()).ldelim();
     }
     if (message.chunk !== undefined) {
-      ChunkRequest.encode(message.chunk, writer.uint32(26).fork()).ldelim();
+      ChunkRequest.encode(message.chunk, writer.uint32(34).fork()).ldelim();
     }
     if (message.size !== undefined) {
-      SizeRequest.encode(message.size, writer.uint32(34).fork()).ldelim();
+      SizeRequest.encode(message.size, writer.uint32(42).fork()).ldelim();
     }
     if (message.crc32 !== undefined) {
-      ChunkRequest.encode(message.crc32, writer.uint32(42).fork()).ldelim();
+      ChunkRequest.encode(message.crc32, writer.uint32(50).fork()).ldelim();
     }
     return writer;
   },
@@ -358,18 +452,21 @@ export const Request = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.version = VersionRequest.decode(reader, reader.uint32());
+          message.type = reader.int32() as any;
           break;
         case 2:
-          message.hash = HashRequest.decode(reader, reader.uint32());
+          message.version = VersionRequest.decode(reader, reader.uint32());
           break;
         case 3:
-          message.chunk = ChunkRequest.decode(reader, reader.uint32());
+          message.hash = HashRequest.decode(reader, reader.uint32());
           break;
         case 4:
-          message.size = SizeRequest.decode(reader, reader.uint32());
+          message.chunk = ChunkRequest.decode(reader, reader.uint32());
           break;
         case 5:
+          message.size = SizeRequest.decode(reader, reader.uint32());
+          break;
+        case 6:
           message.crc32 = ChunkRequest.decode(reader, reader.uint32());
           break;
         default:
@@ -382,6 +479,7 @@ export const Request = {
 
   fromJSON(object: any): Request {
     return {
+      type: isSet(object.type) ? messageTypeFromJSON(object.type) : 0,
       version: isSet(object.version)
         ? VersionRequest.fromJSON(object.version)
         : undefined,
@@ -398,6 +496,7 @@ export const Request = {
 
   toJSON(message: Request): unknown {
     const obj: any = {};
+    message.type !== undefined && (obj.type = messageTypeToJSON(message.type));
     message.version !== undefined &&
       (obj.version = message.version
         ? VersionRequest.toJSON(message.version)
@@ -419,6 +518,7 @@ export const Request = {
 
   fromPartial<I extends Exact<DeepPartial<Request>, I>>(object: I): Request {
     const message = createBaseRequest();
+    message.type = object.type ?? 0;
     message.version =
       object.version !== undefined && object.version !== null
         ? VersionRequest.fromPartial(object.version)
@@ -439,6 +539,254 @@ export const Request = {
       object.crc32 !== undefined && object.crc32 !== null
         ? ChunkRequest.fromPartial(object.crc32)
         : undefined;
+    return message;
+  },
+};
+
+function createBaseSizeResponse(): SizeResponse {
+  return { fileType: 0, value: 0 };
+}
+
+export const SizeResponse = {
+  encode(
+    message: SizeResponse,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.fileType !== 0) {
+      writer.uint32(8).int32(message.fileType);
+    }
+    if (message.value !== 0) {
+      writer.uint32(16).uint32(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SizeResponse {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSizeResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.fileType = reader.int32() as any;
+          break;
+        case 2:
+          message.value = reader.uint32();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SizeResponse {
+    return {
+      fileType: isSet(object.fileType) ? fileTypeFromJSON(object.fileType) : 0,
+      value: isSet(object.value) ? Number(object.value) : 0,
+    };
+  },
+
+  toJSON(message: SizeResponse): unknown {
+    const obj: any = {};
+    message.fileType !== undefined &&
+      (obj.fileType = fileTypeToJSON(message.fileType));
+    message.value !== undefined && (obj.value = Math.round(message.value));
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<SizeResponse>, I>>(
+    object: I
+  ): SizeResponse {
+    const message = createBaseSizeResponse();
+    message.fileType = object.fileType ?? 0;
+    message.value = object.value ?? 0;
+    return message;
+  },
+};
+
+function createBaseChunkResponse(): ChunkResponse {
+  return {
+    fileType: 0,
+    start: 0,
+    length: 0,
+    data: new Uint8Array(),
+    crc32: undefined,
+  };
+}
+
+export const ChunkResponse = {
+  encode(
+    message: ChunkResponse,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.fileType !== 0) {
+      writer.uint32(8).int32(message.fileType);
+    }
+    if (message.start !== 0) {
+      writer.uint32(16).uint32(message.start);
+    }
+    if (message.length !== 0) {
+      writer.uint32(24).uint32(message.length);
+    }
+    if (message.data.length !== 0) {
+      writer.uint32(34).bytes(message.data);
+    }
+    if (message.crc32 !== undefined) {
+      writer.uint32(40).uint32(message.crc32);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ChunkResponse {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseChunkResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.fileType = reader.int32() as any;
+          break;
+        case 2:
+          message.start = reader.uint32();
+          break;
+        case 3:
+          message.length = reader.uint32();
+          break;
+        case 4:
+          message.data = reader.bytes();
+          break;
+        case 5:
+          message.crc32 = reader.uint32();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ChunkResponse {
+    return {
+      fileType: isSet(object.fileType) ? fileTypeFromJSON(object.fileType) : 0,
+      start: isSet(object.start) ? Number(object.start) : 0,
+      length: isSet(object.length) ? Number(object.length) : 0,
+      data: isSet(object.data)
+        ? bytesFromBase64(object.data)
+        : new Uint8Array(),
+      crc32: isSet(object.crc32) ? Number(object.crc32) : undefined,
+    };
+  },
+
+  toJSON(message: ChunkResponse): unknown {
+    const obj: any = {};
+    message.fileType !== undefined &&
+      (obj.fileType = fileTypeToJSON(message.fileType));
+    message.start !== undefined && (obj.start = Math.round(message.start));
+    message.length !== undefined && (obj.length = Math.round(message.length));
+    message.data !== undefined &&
+      (obj.data = base64FromBytes(
+        message.data !== undefined ? message.data : new Uint8Array()
+      ));
+    message.crc32 !== undefined && (obj.crc32 = Math.round(message.crc32));
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<ChunkResponse>, I>>(
+    object: I
+  ): ChunkResponse {
+    const message = createBaseChunkResponse();
+    message.fileType = object.fileType ?? 0;
+    message.start = object.start ?? 0;
+    message.length = object.length ?? 0;
+    message.data = object.data ?? new Uint8Array();
+    message.crc32 = object.crc32 ?? undefined;
+    return message;
+  },
+};
+
+function createBaseCRC32Response(): CRC32Response {
+  return { fileType: 0, start: 0, length: 0, value: 0 };
+}
+
+export const CRC32Response = {
+  encode(
+    message: CRC32Response,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.fileType !== 0) {
+      writer.uint32(8).int32(message.fileType);
+    }
+    if (message.start !== 0) {
+      writer.uint32(16).uint32(message.start);
+    }
+    if (message.length !== 0) {
+      writer.uint32(24).uint32(message.length);
+    }
+    if (message.value !== 0) {
+      writer.uint32(32).uint32(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): CRC32Response {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCRC32Response();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.fileType = reader.int32() as any;
+          break;
+        case 2:
+          message.start = reader.uint32();
+          break;
+        case 3:
+          message.length = reader.uint32();
+          break;
+        case 4:
+          message.value = reader.uint32();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CRC32Response {
+    return {
+      fileType: isSet(object.fileType) ? fileTypeFromJSON(object.fileType) : 0,
+      start: isSet(object.start) ? Number(object.start) : 0,
+      length: isSet(object.length) ? Number(object.length) : 0,
+      value: isSet(object.value) ? Number(object.value) : 0,
+    };
+  },
+
+  toJSON(message: CRC32Response): unknown {
+    const obj: any = {};
+    message.fileType !== undefined &&
+      (obj.fileType = fileTypeToJSON(message.fileType));
+    message.start !== undefined && (obj.start = Math.round(message.start));
+    message.length !== undefined && (obj.length = Math.round(message.length));
+    message.value !== undefined && (obj.value = Math.round(message.value));
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<CRC32Response>, I>>(
+    object: I
+  ): CRC32Response {
+    const message = createBaseCRC32Response();
+    message.fileType = object.fileType ?? 0;
+    message.start = object.start ?? 0;
+    message.length = object.length ?? 0;
+    message.value = object.value ?? 0;
     return message;
   },
 };
@@ -579,7 +927,13 @@ export const HashRequest = {
 };
 
 function createBaseChunkRequest(): ChunkRequest {
-  return { hash: "", fileType: 0, start: 0, length: 0 };
+  return {
+    hash: "",
+    fileType: 0,
+    start: 0,
+    length: 0,
+    includeCrc32: undefined,
+  };
 }
 
 export const ChunkRequest = {
@@ -594,10 +948,13 @@ export const ChunkRequest = {
       writer.uint32(16).int32(message.fileType);
     }
     if (message.start !== 0) {
-      writer.uint32(24).int32(message.start);
+      writer.uint32(24).uint32(message.start);
     }
     if (message.length !== 0) {
-      writer.uint32(32).int32(message.length);
+      writer.uint32(32).uint32(message.length);
+    }
+    if (message.includeCrc32 !== undefined) {
+      writer.uint32(40).bool(message.includeCrc32);
     }
     return writer;
   },
@@ -616,10 +973,13 @@ export const ChunkRequest = {
           message.fileType = reader.int32() as any;
           break;
         case 3:
-          message.start = reader.int32();
+          message.start = reader.uint32();
           break;
         case 4:
-          message.length = reader.int32();
+          message.length = reader.uint32();
+          break;
+        case 5:
+          message.includeCrc32 = reader.bool();
           break;
         default:
           reader.skipType(tag & 7);
@@ -635,6 +995,9 @@ export const ChunkRequest = {
       fileType: isSet(object.fileType) ? fileTypeFromJSON(object.fileType) : 0,
       start: isSet(object.start) ? Number(object.start) : 0,
       length: isSet(object.length) ? Number(object.length) : 0,
+      includeCrc32: isSet(object.includeCrc32)
+        ? Boolean(object.includeCrc32)
+        : undefined,
     };
   },
 
@@ -645,6 +1008,8 @@ export const ChunkRequest = {
       (obj.fileType = fileTypeToJSON(message.fileType));
     message.start !== undefined && (obj.start = Math.round(message.start));
     message.length !== undefined && (obj.length = Math.round(message.length));
+    message.includeCrc32 !== undefined &&
+      (obj.includeCrc32 = message.includeCrc32);
     return obj;
   },
 
@@ -656,6 +1021,7 @@ export const ChunkRequest = {
     message.fileType = object.fileType ?? 0;
     message.start = object.start ?? 0;
     message.length = object.length ?? 0;
+    message.includeCrc32 = object.includeCrc32 ?? undefined;
     return message;
   },
 };

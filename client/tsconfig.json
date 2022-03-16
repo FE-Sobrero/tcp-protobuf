@@ -9,7 +9,7 @@
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
 		"downlevelIteration": true,
-    "types": ["vite/client", "@types/node", "node",]
+    "types": ["@types/node", "node",]
   },
 	"include": ["*", "*.ts", "**.ts", "**/*"],
 	"exclude": ["node_modules"]
